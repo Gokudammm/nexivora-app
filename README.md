@@ -3,9 +3,9 @@
 **The Global Academic Collaboration Network.**
 *Projects. People. Opportunities.*
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Gokudammm/nexivora-app)
-&nbsp;·&nbsp; free, no card — [`render.yaml`](render.yaml), walkthrough and caveats in
-[`deploy/nexivora-space/README.md`](deploy/nexivora-space/README.md)
+[Deploy Nexivora with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FGokudammm%2Fnexivora-app&root-directory=app)
+— set the project root to `app` and configure the production environment variables
+described in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#vercel--full-application).
 
 Nexivora is the system of record for academic project work — and the network that grows on top of
 it. It connects students, faculty, colleges, alumni, companies and researchers around the thing

@@ -92,8 +92,8 @@ Set these variables for the relevant Vercel environments:
 | `DIRECT_DATABASE_URL` | Direct (unpooled) PostgreSQL URI for migrations |
 | `STORAGE_DRIVER` | `blob` |
 | `AUTH_SECRET` | Unique random secret (at least 32 characters) |
-| `AUTH_URL` | The production `https://` URL |
-| `NEXT_PUBLIC_SITE_URL` | The production `https://` URL |
+| `AUTH_URL` | `https://nexivora1in.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://nexivora1in.vercel.app` |
 | `EMAIL_TRANSPORT` | `smtp` |
 | `EMAIL_FROM` | Address on a sender domain verified by your email provider |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | SMTP credentials from your email provider |

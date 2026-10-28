@@ -3,6 +3,8 @@
 **The Global Academic Collaboration Network.**
 *Projects. People. Opportunities.*
 
+[Open the live Nexivora app](https://nexivora1in.vercel.app/explore)
+
 [Deploy Nexivora with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FGokudammm%2Fnexivora-app&root-directory=app)
 — set the project root to `app` and configure the production environment variables
 described in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#vercel--full-application).

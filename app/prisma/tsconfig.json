@@ -1,0 +1,27 @@
+{
+  "//": [
+    "The seed is a standalone Node program, not part of the Next build.",
+    "",
+    "Node's ESM resolver requires explicit file extensions, so the seed modules",
+    "import each other as './lib.ts'. The app's tsconfig forbids that because a",
+    "bundler resolves extensionless specifiers and writing them out would be",
+    "wrong there. Two different runtimes, two different rules — so the seed gets",
+    "its own config rather than loosening the app's.",
+    "",
+    "Checked by `npm run typecheck`, which runs tsc over both projects."
+  ],
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "incremental": false,
+    "lib": ["esnext"],
+    "types": ["node"],
+    "jsx": "preserve",
+    "plugins": []
+  },
+  "include": ["seed/**/*.ts", "../prisma.config.ts"],
+  "exclude": ["../node_modules"]
+}

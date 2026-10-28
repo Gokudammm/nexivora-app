@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Nexivora: Start DB",
+      "type": "shell",
+      "command": "npm.cmd run db:up",
+      "options": {
+        "cwd": "${workspaceFolder}/app"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Nexivora: Dev Server",
+      "type": "shell",
+      "command": "npm.cmd run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/app"
+      },
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "nextjs",
+          "severity": "info",
+          "pattern": {
+            "regexp": ".*",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          }
+        }
+      ]
+    },
+    {
+      "label": "Nexivora: Public Tunnel",
+      "type": "shell",
+      "command": "npx.cmd --yes localtunnel --port 3000 --subdomain nexivora",
+      "options": {
+        "cwd": "${workspaceFolder}/app"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Nexivora">
+  <title>Nexivora</title>
+  <!--
+    The Nexivora mark.
+
+    Three nodes joined by two strokes, reading simultaneously as a connection
+    graph and as a capital N. The left node sits low, the right node sits high
+    (an ascent), and the top-right node is largest so the mark has a focal point
+    rather than reading as symmetrical decoration.
+
+    This URL is permanent. Per the Google favicon guidance
+    (../SEO IMPs/Fevicon.txt) an icon must live on a stable URL that never
+    changes once indexed — so the artwork may be revised here, but /icon.svg
+    itself never moves.
+
+    The same geometry is rasterised into favicon.ico, apple-touch-icon.png and
+    the PWA icons by scripts/generate-icons.mjs. Change one, run
+    `npm run gen:icons`, and they stay in step.
+  -->
+  <rect width="32" height="32" rx="7" fill="#4f46e5"/>
+  <path d="M9 23.5V9.5L23 22.5V8.5" fill="none" stroke="#ffffff" stroke-width="2.75"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="9" cy="23.5" r="2.75" fill="#ffffff"/>
+  <circle cx="23" cy="8.5" r="3.5" fill="#67e8f9"/>
+</svg>

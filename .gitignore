@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+build/
+next-env.d.ts
+
+# Environment — .env.example is committed, .env never is
+.env
+.env.*
+!.env.example
+
+# Uploads and local data
+.uploads/
+*.db
+*.db-journal
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Logs and caches
+*.log
+npm-debug.log*
+*.tsbuildinfo
+.eslintcache
+
+# Scratch
+scratch/
+*.local

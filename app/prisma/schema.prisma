@@ -1,0 +1,2347 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NEXIVORA DATA MODEL
+//
+// The contract this must satisfy is `src/content/types.ts`, written in Phase 2.
+// Anything that file declares which this schema cannot represent is a schema
+// bug, not a fixture bug. Reference: docs/DATA-MODEL.md.
+//
+// Prisma 7: the datasource URL lives in prisma.config.ts (for the CLI) and in a
+// driver adapter (for the runtime), not here. See ADR-002.
+//
+// Conventions, applied without exception:
+//   · cuid2 ids — not autoincrement (leaks volume, enumerable), not uuidv4
+//     (poor index locality)
+//   · createdAt / updatedAt on every model
+//   · deletedAt on user-authored content; hard delete on join tables
+//   · collegeId denormalised onto every institution-scoped model and indexed,
+//     so cross-college isolation is one predicate rather than a four-table join
+//   · enums for every closed set; a status as a free string is a typo waiting
+//   · composite indexes for real access patterns, not for every column
+// ─────────────────────────────────────────────────────────────────────────────
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ENUMS — mirroring src/content/types.ts
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum Role {
+  STUDENT
+  FACULTY
+  COLLEGE_ADMIN
+  ALUMNI
+  COMPANY
+  RESEARCHER
+  PLATFORM_ADMIN
+}
+
+/// A user's role is per-membership, never global. This is what lets the alumni
+/// transition be a state change rather than a new account (docs/ROLES-PERMISSIONS.md).
+enum MembershipState {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  ALUMNI
+  /// Project-scoped access for a member of a PARTNERED college.
+  ///
+  /// This is how inter-college collaboration works without weakening isolation:
+  /// the guest gets a real membership, so every "is this row inside the viewer's
+  /// college" check keeps working unchanged, but the state marks them as
+  /// belonging elsewhere. A guest never appears in the college directory, never
+  /// counts in its statistics, and sees only the groups they were added to.
+  ///
+  /// Without this the alternative is a group member with no membership at that
+  /// college, which is precisely the hole every isolation check would then have
+  /// to special-case.
+  GUEST
+}
+
+enum Visibility {
+  PRIVATE
+  GROUP
+  CLASS
+  COLLEGE
+  PUBLIC
+}
+
+enum VerificationState {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ProjectStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  IN_PROGRESS
+  UNDER_REVIEW
+  COMPLETED
+  ARCHIVED
+  REJECTED
+  ABANDONED
+}
+
+enum SectionKind {
+  PROBLEM
+  RESEARCH
+  SOLUTION
+  METHODOLOGY
+  PROTOTYPE
+  TESTING
+  RESULTS
+  CONCLUSION
+  FUTURE_WORK
+}
+
+/// The three-tier contribution proof model. See docs/CONTEXT.md §4.
+enum ProofTier {
+  SELF
+  WORKSPACE_EVIDENCED
+  FACULTY_ATTESTED
+}
+
+enum LineageKind {
+  BUILDS_ON
+  EXTENDS
+  REPLICATES
+  FORKS
+}
+
+enum SkillSource {
+  SELF
+  PROJECT_INFERRED
+  ATTESTED
+}
+
+enum GroupRole {
+  LEAD
+  MEMBER
+}
+
+enum GroupJoinPolicy {
+  OPEN
+  REQUEST
+  INVITE_ONLY
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ThreadKind {
+  GENERAL
+  QUESTION
+  DECISION
+  BLOCKER
+}
+
+/// Every kind of event the contribution ledger records. Weights live in
+/// config/ledger.ts, never in the database — they need tuning against real
+/// usage and that should not require a migration (ADR-007).
+enum LedgerEventKind {
+  TASK_CLOSED
+  FILE_ADDED
+  FILE_REVISED
+  THREAD_STARTED
+  MESSAGE_POSTED
+  MEETING_ATTENDED
+  MILESTONE_OWNED
+  COMMIT_LINKED
+  REVIEW_GIVEN
+}
+
+enum MilestoneState {
+  UPCOMING
+  IN_PROGRESS
+  AT_RISK
+  COMPLETE
+}
+
+enum IdeaStatus {
+  IDEA
+  LOOKING_FOR_TEAM
+  IN_DEVELOPMENT
+  TESTING
+  COMPLETED
+}
+
+/// A post MUST reference exactly one anchor. Enforced by a database check
+/// constraint, not by convention (ADR-006) — the moment it is only enforced in
+/// application code, some future route handler bypasses it and the feed slowly
+/// fills with status updates.
+enum PostKind {
+  PROJECT_UPDATE
+  MILESTONE
+  RESEARCH_FINDING
+  PROTOTYPE_DEMO
+  ACHIEVEMENT
+  QUESTION
+  RESOURCE
+  PROJECT_PUBLISHED
+  IDEA_POSTED
+}
+
+enum PostSource {
+  AUTHORED
+  GENERATED
+}
+
+enum ReactionKind {
+  INSIGHTFUL
+  USEFUL
+  IMPRESSIVE
+  SUPPORT
+}
+
+enum FollowTargetType {
+  USER
+  PROJECT
+  TOPIC
+  COLLEGE
+  GROUP
+}
+
+enum NotificationCategory {
+  MENTION
+  TASK_ASSIGNED
+  TASK_DUE
+  COMMENT
+  REACTION
+  FOLLOWER
+  GROUP_INVITE
+  MILESTONE
+  DEADLINE
+  SUBMISSION_REVIEWED
+  ATTESTATION
+  ANNOUNCEMENT
+  COLLABORATION_REQUEST
+  MENTORSHIP
+  SYSTEM
+}
+
+enum RequestState {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum OpportunityType {
+  INTERNSHIP
+  JOB
+  RESEARCH
+  HACKATHON
+}
+
+enum EmploymentType {
+  INTERN
+  FULL_TIME
+  PART_TIME
+  CONTRACTOR
+  TEMPORARY
+}
+
+enum ApplicationStage {
+  APPLIED
+  REVIEWED
+  SHORTLISTED
+  INTERVIEW
+  OFFERED
+  ACCEPTED
+  REJECTED
+}
+
+enum EventKind {
+  WORKSHOP
+  GUEST_LECTURE
+  SEMINAR
+  CONFERENCE
+  EXHIBITION
+  DEMO_DAY
+  HACKATHON
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  PLAGIARISM
+  INAPPROPRIATE
+  MISINFORMATION
+  IMPERSONATION
+  OTHER
+}
+
+enum ModerationAction {
+  DISMISSED
+  WARNED
+  HIDDEN
+  REMOVED
+  SUSPENDED
+  ESCALATED
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 1 · IDENTITY & ACCESS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Identity only. Everything academic lives on the profile models, so a user can
+/// legitimately be an alumnus of one college and an employee of a company
+/// without contorting one table.
+model User {
+  id            String    @id @default(cuid(2))
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String
+  username      String    @unique
+  name          String
+  avatarUrl     String?
+  headline      String?
+  bio           String?
+  pronouns      String?
+  location      String?
+  timezone      String    @default("Asia/Kolkata")
+  locale        String    @default("en")
+
+  /// Set 30 days after creation; the public profile URL is a real asset and a
+  /// changing one breaks links and citations.
+  usernameLockedAt DateTime?
+
+  lastLoginAt DateTime?
+  lockedUntil DateTime?
+  failedLogins Int      @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// Maintained by a trigger, never by the application (see the search_infrastructure
+  /// migration). Prisma owns the column so it stays in the migration history; the
+  /// client cannot read it, which is correct — it is queried through raw SQL in
+  /// src/lib/search/fts.ts.
+  searchVector Unsupported("tsvector")?
+
+  memberships      Membership[]
+  sessions         Session[]
+  accounts         Account[]
+  tokens           VerificationToken[]
+  privacy          PrivacySetting?
+  studentProfile   StudentProfile?
+  facultyProfile   FacultyProfile?
+  alumniProfile    AlumniProfile?
+  researcherProfile ResearcherProfile?
+  companyProfile   CompanyProfile?
+  skills           UserSkill[]
+  links            UserLink[]
+  achievements     Achievement[]
+
+  groupMemberships GroupMember[]
+  projectMembers   ProjectMember[]
+  enrolments       ClassEnrolment[]
+  subjectAssignments SubjectAssignment[]
+
+  tasksCreated   Task[]           @relation("TaskCreator")
+  tasksAssigned  TaskAssignee[]
+  filesUploaded  FileAsset[]
+  fileVersions   FileVersion[]
+  threads        Thread[]
+  messages       Message[]
+  mentions       Mention[]
+  meetingsHosted Meeting[]
+  attendances    MeetingAttendance[]
+  ledgerEvents   LedgerEvent[]
+  reviewsGiven   PeerReview[]     @relation("ReviewAuthor")
+  reviewsAbout   PeerReview[]     @relation("ReviewSubject")
+  sectionEdits   ProjectSectionVersion[]
+
+  posts        Post[]
+  comments     Comment[]
+  reactions    Reaction[]
+  saves        Save[]
+  following    Follow[]           @relation("Follower")
+  notifications Notification[]
+  notificationPrefs NotificationPreference[]
+
+  ideas             Idea[]
+  ideaInterests     IdeaInterest[]
+  requestsSent      CollaborationRequest[] @relation("RequestSender")
+  requestsReceived  CollaborationRequest[] @relation("RequestRecipient")
+  savedSearches     SavedSearch[]
+
+  evaluationsGiven  Evaluation[]      @relation("Evaluator")
+  criterionScores   CriterionScore[]
+  feedbackGiven     Feedback[]
+  attestationsIssued Attestation[]    @relation("Attester")
+  attestationsHeld  Attestation[]     @relation("AttestationSubject")
+  rubricsCreated    Rubric[]
+  announcements     Announcement[]
+
+  mentorshipsAsMentor  MentorshipRequest[] @relation("Mentor")
+  mentorshipsAsMentee  MentorshipRequest[] @relation("Mentee")
+  applications         Application[]
+
+  eventsHosted      Event[]
+  eventRegistrations EventRegistration[]
+
+  auditEntries    AuditLog[]
+  invitationsSent Invitation[]      @relation("Inviter")
+  reportsFiled    Report[]          @relation("Reporter")
+  moderations     Report[]          @relation("Moderator")
+  statusEvents    ProjectStatusEvent[]
+  similarityOverrides SimilarityCheck[]
+  consents        ConsentRecord[]
+  onboarding      OnboardingProgress?
+
+  @@index([deletedAt])
+  @@index([createdAt])
+}
+
+/// Auth.js account linking. Present from Phase 3 so Phase 16 can add OAuth
+/// without a migration.
+model Account {
+  id                String  @id @default(cuid(2))
+  userId            String
+  provider          String
+  providerAccountId String
+  type              String
+  refreshToken      String?
+  accessToken       String?
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid(2))
+  userId       String
+  sessionToken String   @unique
+  expires      DateTime
+  userAgent    String?
+  ipHash       String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+}
+
+/// Email verification and password reset. Tokens are stored hashed, are
+/// single-use, and expire — see docs/SECURITY.md §1.
+model VerificationToken {
+  id        String   @id @default(cuid(2))
+  userId    String?
+  identifier String
+  tokenHash String   @unique
+  purpose   String
+  expires   DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identifier])
+  @@index([expires])
+}
+
+/// The join between a user, a college and a role. A user's role is per
+/// membership, not global.
+model Membership {
+  id        String          @id @default(cuid(2))
+  userId    String
+  collegeId String
+  role      Role
+  state     MembershipState @default(INVITED)
+  title     String?
+
+  suspendedReason String?
+  joinedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, collegeId, role])
+  @@index([collegeId, role, state])
+  @@index([userId])
+}
+
+/// Per-field privacy. Everything defaults to the most private useful setting —
+/// public profile is opt-in, contactability is a separate opt-in (DPDP).
+model PrivacySetting {
+  id     String @id @default(cuid(2))
+  userId String @unique
+
+  profileVisibility Visibility @default(COLLEGE)
+  showEmail         Boolean    @default(false)
+  showRollNumber    Boolean    @default(false)
+  showProjects      Boolean    @default(true)
+  showSkills        Boolean    @default(true)
+
+  discoverableInSearch Boolean @default(false)
+  contactableByCompany Boolean @default(false)
+  inCollegeDirectory   Boolean @default(false)
+  showInProjectCredits Boolean @default(true)
+  emailDigest          Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Consent records — what was consented to, when, and against which version.
+/// A DPDP obligation, not a nicety.
+model ConsentRecord {
+  id        String   @id @default(cuid(2))
+  userId    String
+  purpose   String
+  version   String
+  granted   Boolean
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+}
+
+/// Failed sign-in attempts, for rate limiting.
+///
+/// In the database rather than an in-process Map on purpose: a Map resets on
+/// every deploy and gives an attacker N times the budget across N processes.
+/// Rows are pruned after 24 hours — they are tied to an identifier, so they are
+/// personal data we have no reason to keep.
+model LoginAttempt {
+  id         String   @id @default(cuid(2))
+  /// The email or username tried. Lowercased.
+  identifier String
+  /// Hashed, never the raw address (DPDP).
+  ipHash     String?
+  succeeded  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+  @@index([identifier, ipHash, succeeded, createdAt])
+  @@index([createdAt])
+}
+
+/// Where a user has reached in their role's onboarding wizard.
+///
+/// Persisted rather than held in the session so the wizard survives a closed
+/// tab and a different device. `data` holds the answers so far, and becomes
+/// profile rows only when the wizard completes — so a half-finished onboarding
+/// never produces a half-built profile.
+model OnboardingProgress {
+  id          String    @id @default(cuid(2))
+  userId      String    @unique
+  role        Role
+  step        String
+  data        Json      @default("{}")
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Append-only. Every administrative, evaluative and moderation action writes
+/// one. There is no update or delete path in the client wrapper.
+model AuditLog {
+  id          String   @id @default(cuid(2))
+  collegeId   String?
+  actorId     String?
+  action      String
+  subjectType String
+  subjectId   String
+  before      Json?
+  after       Json?
+  reason      String?
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  actor   User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  college College? @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId, createdAt])
+  @@index([subjectType, subjectId])
+  @@index([actorId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2 · INSTITUTION HIERARCHY
+// ═════════════════════════════════════════════════════════════════════════════
+
+model College {
+  id          String            @id @default(cuid(2))
+  slug        String            @unique
+  name        String
+  shortName   String
+  code        String            @unique
+  city        String
+  state       String
+  country     String            @default("IN")
+  website     String?
+  logoUrl     String?
+  accentColor String?
+  description String
+  foundingDate String?
+  timezone    String            @default("Asia/Kolkata")
+
+  /// An unverified college's content is never publicly indexable and it does
+  /// not appear in inter-college surfaces. This is the anti-abuse gate.
+  verification VerificationState @default(UNVERIFIED)
+  verifiedAt   DateTime?
+  /// Institutional email domains. A registrant on one is auto-associated.
+  emailDomains String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships  Membership[]
+  departments  Department[]
+  terms        Term[]
+  groups       Group[]
+  projects     Project[]
+  ideas        Idea[]
+  invitations  Invitation[]
+  auditLogs    AuditLog[]
+  posts        Post[]
+  events       Event[]
+  partnersA    CollegePartnership[] @relation("PartnerA")
+  partnersB    CollegePartnership[] @relation("PartnerB")
+
+  @@index([verification])
+}
+
+model Department {
+  id        String @id @default(cuid(2))
+  collegeId String
+  name      String
+  code      String
+  headId    String?
+
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  college    College     @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  programmes Programme[]
+  subjects   Subject[]
+
+  @@unique([collegeId, code])
+  @@index([collegeId])
+}
+
+model Programme {
+  id           String @id @default(cuid(2))
+  collegeId    String
+  departmentId String
+  name         String
+  code         String
+  degreeType   String
+  durationYears Int
+
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subjects   Subject[]
+
+  @@unique([collegeId, code])
+  @@index([collegeId, departmentId])
+}
+
+model Subject {
+  id           String @id @default(cuid(2))
+  collegeId    String
+  departmentId String
+  programmeId  String?
+  name         String
+  code         String
+  credits      Int     @default(0)
+  semester     Int?
+  description  String?
+
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  department Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  programme  Programme?  @relation(fields: [programmeId], references: [id], onDelete: SetNull)
+  classes    Class[]
+  rubrics    Rubric[]
+
+  @@unique([collegeId, code])
+  @@index([collegeId, departmentId])
+}
+
+/// The academic session. A first-class model rather than a string field:
+/// every analytic and every accreditation report rolls up to a term, and a
+/// text field here makes Phase 15 impossible.
+model Term {
+  id        String   @id @default(cuid(2))
+  collegeId String
+  name      String
+  startsOn  DateTime
+  endsOn    DateTime
+  isActive  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  college  College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  classes  Class[]
+  projects Project[]
+
+  @@unique([collegeId, name])
+  @@index([collegeId, isActive])
+}
+
+model Class {
+  id        String @id @default(cuid(2))
+  collegeId String
+  subjectId String
+  termId    String
+  section   String @default("A")
+
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  subject     Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  term        Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
+  enrolments  ClassEnrolment[]
+  assignments SubjectAssignment[]
+  groups      Group[]
+  announcements Announcement[]
+
+  @@unique([subjectId, termId, section])
+  @@index([collegeId, termId])
+}
+
+model ClassEnrolment {
+  id        String   @id @default(cuid(2))
+  classId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, userId])
+  @@index([userId])
+}
+
+model SubjectAssignment {
+  id        String   @id @default(cuid(2))
+  classId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id        String       @id @default(cuid(2))
+  collegeId String
+  inviterId String
+  email     String
+  role      Role
+  classId   String?
+  code      String       @unique
+  state     RequestState @default(PENDING)
+  expiresAt DateTime
+  acceptedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  inviter User    @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId, state])
+  @@index([email])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3 · PROFILES & THE SOCIAL GRAPH
+// ═════════════════════════════════════════════════════════════════════════════
+
+model StudentProfile {
+  id           String  @id @default(cuid(2))
+  userId       String  @unique
+  collegeId    String
+  departmentId String?
+  programmeId  String?
+  rollNumber   String?
+  year         Int?
+  availableForTeams Boolean @default(true)
+  interests    String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId, year])
+}
+
+model FacultyProfile {
+  id             String   @id @default(cuid(2))
+  userId         String   @unique
+  collegeId      String
+  departmentId   String?
+  designation    String?
+  qualifications String[]
+  expertise      String[]
+  researchInterests String[]
+  officeHours    String?
+  mentorshipAvailable Boolean @default(false)
+  mentorshipCapacity  Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId])
+}
+
+model AlumniProfile {
+  id             String @id @default(cuid(2))
+  userId         String @unique
+  collegeId      String
+  graduationYear Int
+  programme      String?
+  currentRole    String?
+  organisation   String?
+  industry       String?
+  mentorshipAvailable Boolean @default(false)
+  mentorshipCapacity  Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId, graduationYear])
+}
+
+model ResearcherProfile {
+  id          String   @id @default(cuid(2))
+  userId      String   @unique
+  affiliation String?
+  field       String?
+  orcid       String?
+  interests   String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A company cannot post an opportunity, contact a student, or appear in search
+/// until verification completes. Fake internship listings that charge a
+/// "certificate fee" are a real scam targeting exactly these students.
+model CompanyProfile {
+  id           String            @id @default(cuid(2))
+  userId       String            @unique
+  slug         String            @unique
+  name         String
+  logoUrl      String?
+  industry     String?
+  size         String?
+  website      String?
+  description  String?
+  focusAreas   String[]
+  locations    String[]
+  verification VerificationState @default(UNVERIFIED)
+  verifiedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@index([verification])
+}
+
+model Skill {
+  id       String  @id @default(cuid(2))
+  slug     String  @unique
+  name     String
+  domain   String?
+
+  createdAt DateTime @default(now())
+
+  users UserSkill[]
+}
+
+/// A skill points at evidence. `source` distinguishes a claim from a derived
+/// fact from a faculty signature — the whole point of the profile being
+/// credible rather than a CV.
+model UserSkill {
+  id      String      @id @default(cuid(2))
+  userId  String
+  skillId String
+  source  SkillSource @default(SELF)
+  /// Projects that produced this skill, when source is PROJECT_INFERRED.
+  projectIds String[]
+  attestationId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([skillId, source])
+}
+
+model UserLink {
+  id     String @id @default(cuid(2))
+  userId String
+  label  String
+  url    String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Achievement {
+  id     String @id @default(cuid(2))
+  userId String
+  title  String
+  year   Int
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, year])
+}
+
+/// Polymorphic over USER · PROJECT · TOPIC · COLLEGE · GROUP. Keeping it in one
+/// table is what makes the three feed tabs a single query shape rather than five.
+///
+/// `targetId` deliberately carries NO foreign key: it points into five different
+/// tables depending on `targetType`, so a constraint to any one of them would
+/// reject the other four. Referential integrity for follows is asserted by
+/// scripts/verify-db.mjs instead, which is the honest trade — a fake FK that only
+/// holds for one fifth of the rows is worse than a checked assertion.
+model Follow {
+  id         String           @id @default(cuid(2))
+  followerId String
+  targetType FollowTargetType
+  targetId   String
+  createdAt  DateTime         @default(now())
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, targetType, targetId])
+  @@index([targetType, targetId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 4 · GROUPS & THE WORKSPACE  — the heart of the product
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Group {
+  id          String          @id @default(cuid(2))
+  collegeId   String
+  classId     String?
+  name        String
+  description String?
+  sizeLimit   Int             @default(6)
+  joinPolicy  GroupJoinPolicy @default(REQUEST)
+  visibility  Visibility      @default(GROUP)
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  college  College       @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  class    Class?        @relation(fields: [classId], references: [id], onDelete: SetNull)
+  members  GroupMember[]
+  projects Project[]
+  tasks    Task[]
+  files    FileAsset[]
+  threads  Thread[]
+  meetings Meeting[]
+  ledger   LedgerEvent[]
+  reviews  PeerReview[]
+
+  @@index([collegeId, classId])
+  @@index([archivedAt])
+}
+
+model GroupMember {
+  id      String    @id @default(cuid(2))
+  groupId String
+  userId  String
+  role    GroupRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+  leftAt   DateTime?
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+model Task {
+  id          String       @id @default(cuid(2))
+  groupId     String
+  creatorId   String
+  milestoneId String?
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  position    Int          @default(0)
+  closedAt    DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group     Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator   User           @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  milestone Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assignees TaskAssignee[]
+  labels    TaskLabel[]
+  comments  TaskComment[]
+
+  @@index([groupId, status, dueDate])
+  @@index([milestoneId])
+}
+
+model TaskAssignee {
+  id     String @id @default(cuid(2))
+  taskId String
+  userId String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+}
+
+model TaskLabel {
+  id     String @id @default(cuid(2))
+  taskId String
+  name   String
+  color  String?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model TaskComment {
+  id       String @id @default(cuid(2))
+  taskId   String
+  authorId String
+  body     String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+/// Files are served only through an authorisation-checked route handler, never
+/// a static path (docs/SECURITY.md §4). `storageKey` is a generated name; the
+/// original filename is metadata and is never used as a path.
+model FileAsset {
+  id          String @id @default(cuid(2))
+  groupId     String
+  uploaderId  String
+  folder      String @default("/")
+  name        String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String @unique
+  checksum    String?
+  quarantined Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group    Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploader User          @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  versions FileVersion[]
+
+  @@index([groupId, deletedAt])
+}
+
+/// Versioning as separate rows rather than a mutated field, so a project's
+/// history is recoverable and "who contributed this" is answerable.
+model FileVersion {
+  id         String @id @default(cuid(2))
+  fileId     String
+  uploaderId String
+  version    Int
+  storageKey String @unique
+  sizeBytes  Int
+  checksum   String?
+  note       String?
+
+  createdAt DateTime @default(now())
+
+  file     FileAsset @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploader User      @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, version])
+}
+
+model Thread {
+  id       String     @id @default(cuid(2))
+  groupId  String
+  authorId String
+  kind     ThreadKind @default(GENERAL)
+  title    String
+  body     String
+  pinned   Boolean    @default(false)
+  resolvedAt DateTime?
+  resolvedByMessageId String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([groupId, kind, createdAt])
+}
+
+model Message {
+  id       String @id @default(cuid(2))
+  threadId String
+  authorId String
+  body     String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  thread   Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  mentions Mention[]
+
+  @@index([threadId, createdAt])
+}
+
+model Mention {
+  id        String @id @default(cuid(2))
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+/// We do not host video. We store a join link, and the interface says so.
+model Meeting {
+  id       String   @id @default(cuid(2))
+  groupId  String
+  hostId   String
+  title    String
+  agenda   String?
+  notes    String?
+  startsAt DateTime
+  durationMinutes Int @default(30)
+  location String?
+  joinUrl  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group      Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  host       User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  attendance MeetingAttendance[]
+
+  @@index([groupId, startsAt])
+}
+
+model MeetingAttendance {
+  id        String   @id @default(cuid(2))
+  meetingId String
+  userId    String
+  rsvp      Boolean?
+  attended  Boolean?
+  createdAt DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+}
+
+/// THE CONTRIBUTION LEDGER (ADR-007).
+///
+/// Append-only, and every event is written inside the same database transaction
+/// as the action that produced it. There is deliberately no `updatedAt` and no
+/// `deletedAt`: corrections are new compensating events, the same discipline
+/// accounting uses, for the same reason. A record that can drift from the
+/// actions that produced it is worse than no record, because it looks
+/// authoritative.
+model LedgerEvent {
+  id       String          @id @default(cuid(2))
+  groupId  String
+  userId   String
+  kind     LedgerEventKind
+  /// The row that caused this event — a task id, a file id, a message id.
+  subjectType String
+  subjectId   String
+  /// Denormalised at write time so historic events keep the weight that applied
+  /// when they happened, even after config/ledger.ts is tuned.
+  weight   Int
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, userId, createdAt])
+  @@index([groupId, kind])
+  @@index([subjectType, subjectId])
+}
+
+/// One-directional privacy (ADR-008): a member sees only the aggregate about
+/// themselves and never who said what. Faculty see the detail. Honest review is
+/// impossible without that asymmetry.
+model PeerReview {
+  id          String @id @default(cuid(2))
+  groupId     String
+  milestoneId String?
+  authorId    String
+  subjectId   String
+  contribution Int
+  reliability  Int
+  communication Int
+  comment     String
+
+  createdAt DateTime @default(now())
+
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  author    User       @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  subject   User       @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([milestoneId, authorId, subjectId])
+  @@index([groupId, subjectId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 5 · PROJECTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Project {
+  id          String        @id @default(cuid(2))
+  collegeId   String
+  groupId     String?
+  termId      String?
+  slug        String        @unique
+  title       String
+  summary     String
+  abstract    String
+  status      ProjectStatus @default(DRAFT)
+  visibility  Visibility    @default(PRIVATE)
+
+  /// An embargoed project shows title, team and abstract and withholds the
+  /// body: the work can be cited without being disclosed.
+  embargoUntil DateTime?
+  /// Publication requires faculty approval. Indexability derives from these
+  /// two plus the college's verification — never set independently (ADR-010).
+  approved     Boolean   @default(false)
+  approvedAt   DateTime?
+
+  department  String
+  subject     String?
+  domain      String
+  techStack   String[]
+  keywords    String[]
+  facultyGuide String?
+
+  startedOn   DateTime
+  completedOn DateTime?
+  publishedOn DateTime?
+
+  /// Assigned once at archive time, immutable, printable. It goes into other
+  /// people's reference lists, so it is never recomputed from mutable fields.
+  citationId    String? @unique
+  /// Uploaded through storeImage("cover", …) and served from /api/images.
+  /// Null is the normal case — GeneratedProjectCover draws a deterministic
+  /// mark from the slug, so a project without one is never a grey rectangle.
+  coverUrl      String?
+  repositoryUrl String?
+  demoUrl       String?
+  videoUrl      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  /// Lowercased, unaccented, stop-worded problem statement, denormalised from the
+  /// PROBLEM section so the trigram duplicate detector can index it. Trigger-maintained.
+  problemNormalised String?
+
+  /// Maintained by a trigger, never by the application (see the search_infrastructure
+  /// migration). Prisma owns the column so it stays in the migration history; the
+  /// client cannot read it, which is correct — it is queried through raw SQL in
+  /// src/lib/search/fts.ts.
+  searchVector Unsupported("tsvector")?
+
+  college  College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  group    Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  term     Term?   @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  sections     ProjectSection[]
+  members      ProjectMember[]
+  topics       ProjectTopic[]
+  sdgs         ProjectSdg[]
+  metrics      ProjectMetric[]
+  links        ProjectLink[]
+  milestones   Milestone[]
+  statusEvents ProjectStatusEvent[]
+  submissions  ProjectSubmission[]
+  evaluations  Evaluation[]
+  parentLinks  ProjectLineage[]     @relation("ChildProject")
+  childLinks   ProjectLineage[]     @relation("ParentProject")
+  similarityChecks SimilarityCheck[]
+  ideas        Idea[]
+  feedback     Feedback[]
+  posts        Post[]
+
+  @@index([collegeId, termId, status])
+  @@index([visibility, publishedOn])
+  @@index([groupId])
+  @@index([domain])
+}
+
+/// A row per section, not one JSON blob (ADR-009). Faculty can leave feedback on
+/// a single section, each has its own edit history and completion state, and the
+/// public page renders real <h2> blocks — which is what makes it snippet-eligible.
+model ProjectSection {
+  id        String      @id @default(cuid(2))
+  projectId String
+  kind      SectionKind
+  body      String      @default("")
+  wordCount Int         @default(0)
+  complete  Boolean     @default(false)
+  lastEditorId String?
+  /// Soft lock. A visible "X is editing this" indicator, not CRDT merge —
+  /// honest, and what the use case actually needs.
+  lockedById String?
+  lockedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  feedback Feedback[]
+  versions ProjectSectionVersion[]
+
+  @@unique([projectId, kind])
+}
+
+/// One row per save of a section, so "who changed what, when" is answerable and
+/// a previous version can be restored.
+///
+/// A separate table rather than a JSON column on ProjectSection: the history of
+/// a nine-section project over a semester is hundreds of rows, and a growing
+/// JSON blob rewritten on every autosave is the shape that turns a 200ms save
+/// into a 2s one somewhere around week six.
+model ProjectSectionVersion {
+  id        String      @id @default(cuid(2))
+  sectionId String
+  /// Denormalised so a version survives its section being deleted and recreated,
+  /// and so history can be queried per project without a join.
+  projectId String
+  kind      SectionKind
+  body      String
+  wordCount Int         @default(0)
+  editorId  String?
+  /// Monotonic per section, starting at 1.
+  version   Int
+
+  createdAt DateTime @default(now())
+
+  section ProjectSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  editor  User?          @relation(fields: [editorId], references: [id], onDelete: SetNull)
+
+  @@unique([sectionId, version])
+  @@index([projectId, createdAt])
+}
+
+model ProjectMember {
+  id        String    @id @default(cuid(2))
+  projectId String
+  userId    String
+  /// Their declared role on THIS project, not their platform role.
+  role      String
+  tier      ProofTier @default(SELF)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model ProjectTopic {
+  id        String @id @default(cuid(2))
+  projectId String
+  topicId   String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, topicId])
+  @@index([topicId])
+}
+
+model ProjectSdg {
+  id        String  @id @default(cuid(2))
+  projectId String
+  goal      Int
+  /// One primary goal, at most two genuine secondary ones. Over-tagging is why
+  /// SDG reporting has a credibility problem.
+  primary   Boolean @default(false)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, goal])
+  @@index([goal])
+}
+
+model ProjectMetric {
+  id        String @id @default(cuid(2))
+  projectId String
+  label     String
+  value     String
+  position  Int    @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ProjectLink {
+  id        String @id @default(cuid(2))
+  projectId String
+  label     String
+  url       String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+/// A table rather than a parent pointer, because a project can legitimately
+/// build on more than one predecessor. Cycles are prevented at write time.
+model ProjectLineage {
+  id       String      @id @default(cuid(2))
+  parentId String
+  childId  String
+  kind     LineageKind @default(BUILDS_ON)
+  note     String
+
+  createdAt DateTime @default(now())
+
+  parent Project @relation("ParentProject", fields: [parentId], references: [id], onDelete: Cascade)
+  child  Project @relation("ChildProject", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([childId])
+}
+
+model Milestone {
+  id          String         @id @default(cuid(2))
+  projectId   String
+  ownerId     String?
+  title       String
+  description String?
+  dueDate     DateTime?
+  state       MilestoneState @default(UPCOMING)
+  position    Int            @default(0)
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+  reviews PeerReview[]
+
+  @@index([projectId, state])
+}
+
+model ProjectStatusEvent {
+  id        String        @id @default(cuid(2))
+  projectId String
+  actorId   String?
+  from      ProjectStatus?
+  to        ProjectStatus
+  reason    String?
+
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+}
+
+/// An immutable snapshot of the whole record at submission. Post-submission
+/// editing is locked unless faculty request changes; a resubmission creates a
+/// new snapshot and the old one is retained.
+model ProjectSubmission {
+  id          String   @id @default(cuid(2))
+  projectId   String
+  submittedById String
+  round       Int      @default(1)
+  snapshot    Json
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, round])
+}
+
+/// Storing the check, not just the score, makes the decision auditable — a
+/// faculty override and its justification are part of the record.
+model SimilarityCheck {
+  id         String @id @default(cuid(2))
+  projectId  String
+  /// [{ slug, score, reason }] — the top matches at the time of the check.
+  matches    Json
+  topScore   Float
+  overriddenById String?
+  overrideReason String?
+
+  createdAt DateTime @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  overriddenBy User? @relation(fields: [overriddenById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 6 · EVALUATION
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Versioned rather than mutated: an edited rubric that retroactively changes
+/// past evaluations is a serious academic integrity problem.
+model Rubric {
+  id        String  @id @default(cuid(2))
+  collegeId String
+  subjectId String?
+  creatorId String
+  name      String
+  version   Int     @default(1)
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subject     Subject?          @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  creator     User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  criteria    RubricCriterion[]
+  evaluations Evaluation[]
+
+  @@index([collegeId, subjectId])
+}
+
+model RubricCriterion {
+  id       String @id @default(cuid(2))
+  rubricId String
+  name     String
+  /// Weights across a rubric sum to 100.
+  weight   Int
+  descriptors Json?
+  position Int    @default(0)
+
+  rubric Rubric           @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  scores CriterionScore[]
+
+  @@index([rubricId])
+}
+
+/// Carries both a group score and per-member scores, because the whole point of
+/// the contribution ledger is that they can legitimately differ.
+model Evaluation {
+  id          String @id @default(cuid(2))
+  projectId   String
+  rubricId    String
+  evaluatorId String
+  round       Int    @default(1)
+  groupScore  Decimal? @db.Decimal(6, 2)
+  outcome     String?
+  comments    String?
+  releasedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rubric    Rubric           @relation(fields: [rubricId], references: [id], onDelete: Restrict)
+  evaluator User             @relation("Evaluator", fields: [evaluatorId], references: [id], onDelete: Cascade)
+  scores    CriterionScore[]
+
+  @@unique([projectId, round])
+  @@index([evaluatorId])
+}
+
+model CriterionScore {
+  id           String  @id @default(cuid(2))
+  evaluationId String
+  criterionId  String
+  /// Null for the group score row; set for a per-member score.
+  memberId     String?
+  score        Decimal @db.Decimal(6, 2)
+  /// Required when a per-member score deviates from the group score.
+  reason       String?
+
+  createdAt DateTime @default(now())
+
+  evaluation Evaluation      @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterion  RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  member     User?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@unique([evaluationId, criterionId, memberId])
+}
+
+model Feedback {
+  id        String @id @default(cuid(2))
+  sectionId String?
+  projectId String?
+  authorId  String
+  body      String
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  section ProjectSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  project Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+  @@index([projectId])
+}
+
+/// The mechanism that converts workspace evidence into a credential. Never
+/// issued automatically — its entire value is that a named human signed it.
+/// Revocation preserves the record rather than deleting it.
+model Attestation {
+  id          String @id @default(cuid(2))
+  attesterId  String
+  subjectUserId String?
+  subjectType String
+  subjectId   String
+  statement   String
+  code        String @unique
+
+  issuedAt  DateTime  @default(now())
+  revokedAt DateTime?
+  revokedReason String?
+
+  attester User  @relation("Attester", fields: [attesterId], references: [id], onDelete: Cascade)
+  subject  User? @relation("AttestationSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+
+  @@index([subjectType, subjectId])
+  @@index([attesterId])
+}
+
+model Announcement {
+  id        String @id @default(cuid(2))
+  collegeId String
+  authorId  String
+  classId   String?
+  title     String
+  body      String
+  publishAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  class  Class? @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId, publishAt])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 7 · FEED & ENGAGEMENT
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// EVERY POST REFERENCES EXACTLY ONE ANCHOR (ADR-006), enforced by a database
+/// check constraint added in the same migration — not by convention. The moment
+/// it is only application-enforced, a future route handler bypasses it and the
+/// feed becomes a status-update wasteland.
+model Post {
+  id         String     @id @default(cuid(2))
+  authorId   String
+  collegeId  String?
+  groupId    String?
+  kind       PostKind
+  source     PostSource @default(AUTHORED)
+  visibility Visibility @default(COLLEGE)
+  body       String
+
+  // Exactly one of these is non-null. Enforced by a CHECK constraint.
+  projectId  String?
+  ideaId     String?
+  questionId String?
+  resourceId String?
+
+  /// Denormalised: counting rows per render does not survive a real feed.
+  reactionCount Int @default(0)
+  commentCount  Int @default(0)
+  saveCount     Int @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// Maintained by a trigger, never by the application (see the search_infrastructure
+  /// migration). Prisma owns the column so it stays in the migration history; the
+  /// client cannot read it, which is correct — it is queried through raw SQL in
+  /// src/lib/search/fts.ts.
+  searchVector Unsupported("tsvector")?
+
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  college  College?  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  idea     Idea?     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  question Question? @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  reactions Reaction[]
+  saves    Save[]
+  attachments PostAttachment[]
+
+  @@index([collegeId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([kind, createdAt])
+  @@index([projectId])
+  @@index([ideaId])
+  @@index([questionId])
+  @@index([resourceId])
+}
+
+/// An academic question anchored to a subject or a topic. The feed's QUESTION
+/// posts point here rather than carrying the question inline, so a question keeps
+/// one canonical URL, one answer thread and one accepted answer no matter how
+/// many times it is shared.
+model Question {
+  id        String @id @default(cuid(2))
+  collegeId String
+  authorId  String
+  subjectId String?
+  slug      String @unique
+  title     String
+  body      String
+  tags      String[]
+  answerCount Int    @default(0)
+  acceptedAnswerId String?
+  closedAt  DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  answers Answer[]
+  posts   Post[]
+
+  @@index([collegeId, createdAt])
+  @@index([authorId])
+}
+
+model Answer {
+  id         String @id @default(cuid(2))
+  questionId String
+  authorId   String
+  body       String
+  accepted   Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, accepted])
+  @@index([authorId])
+}
+
+/// A shared learning resource — a paper, a dataset, a tool, a tutorial. Deliberately
+/// a link plus context rather than a re-upload: the value is the annotation saying
+/// why it matters and which subject it serves.
+model Resource {
+  id        String @id @default(cuid(2))
+  collegeId String
+  authorId  String
+  slug      String @unique
+  title     String
+  url       String
+  kind      String
+  summary   String
+  tags      String[]
+  saveCount Int    @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// Maintained by a trigger, never by the application (see the search_infrastructure
+  /// migration). Prisma owns the column so it stays in the migration history; the
+  /// client cannot read it, which is correct — it is queried through raw SQL in
+  /// src/lib/search/fts.ts.
+  searchVector Unsupported("tsvector")?
+
+  posts Post[]
+
+  @@index([collegeId, createdAt])
+  @@index([authorId])
+}
+
+model PostAttachment {
+  id     String @id @default(cuid(2))
+  postId String
+  kind   String
+  url    String
+  title  String?
+
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model Comment {
+  id       String @id @default(cuid(2))
+  postId   String
+  authorId String
+  parentId String?
+  body     String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([postId, createdAt])
+}
+
+/// Meaningful reactions rather than a like button: "Insightful" and "Useful"
+/// are academic signals and better ranking inputs. A heart is neither.
+model Reaction {
+  id     String       @id @default(cuid(2))
+  postId String
+  userId String
+  kind   ReactionKind
+
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model Save {
+  id         String @id @default(cuid(2))
+  postId     String
+  userId     String
+  collection String @default("Saved")
+
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, collection])
+}
+
+model Notification {
+  id        String               @id @default(cuid(2))
+  userId    String
+  category  NotificationCategory
+  title     String
+  body      String?
+  href      String?
+  actorId   String?
+  readAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  id       String               @id @default(cuid(2))
+  userId   String
+  category NotificationCategory
+  inApp    Boolean              @default(true)
+  email    Boolean              @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+/// The raw internal stream. `Post` is the rankable public presentation; keeping
+/// them separate means we can change what generates a post without losing
+/// history.
+model ActivityEvent {
+  id          String   @id @default(cuid(2))
+  collegeId   String?
+  groupId     String?
+  actorId     String?
+  kind        String
+  subjectType String
+  subjectId   String
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([groupId, createdAt])
+  @@index([collegeId, createdAt])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 8 · IDEAS & COLLABORATION
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Idea {
+  id            String     @id @default(cuid(2))
+  collegeId     String
+  authorId      String
+  slug          String     @unique
+  title         String
+  summary       String
+  problem       String
+  approach      String
+  status        IdeaStatus @default(IDEA)
+  domain        String
+  skillsNeeded  String[]
+  teamSizeWanted Int       @default(3)
+  commitment    String     @default("moderate")
+  interestedCount Int      @default(0)
+  /// Set once the idea became a project, so the hub shows outcomes rather than
+  /// only intentions.
+  becameProjectId String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  /// Lowercased, unaccented, stop-worded problem statement, denormalised from the
+  /// PROBLEM section so the trigram duplicate detector can index it. Trigger-maintained.
+  problemNormalised String?
+
+  /// Maintained by a trigger, never by the application (see the search_infrastructure
+  /// migration). Prisma owns the column so it stays in the migration history; the
+  /// client cannot read it, which is correct — it is queried through raw SQL in
+  /// src/lib/search/fts.ts.
+  searchVector Unsupported("tsvector")?
+
+  college   College        @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  project   Project?       @relation(fields: [becameProjectId], references: [id], onDelete: SetNull)
+  interests IdeaInterest[]
+  topics    IdeaTopic[]
+  sdgs      IdeaSdg[]
+  posts     Post[]
+
+  @@index([collegeId, status])
+  @@index([authorId])
+}
+
+model IdeaInterest {
+  id      String @id @default(cuid(2))
+  ideaId  String
+  userId  String
+  message String?
+
+  createdAt DateTime @default(now())
+
+  idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, userId])
+  @@index([userId])
+}
+
+model IdeaTopic {
+  id      String @id @default(cuid(2))
+  ideaId  String
+  topicId String
+
+  idea  Idea  @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, topicId])
+}
+
+model IdeaSdg {
+  id     String @id @default(cuid(2))
+  ideaId String
+  goal   Int
+
+  idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, goal])
+}
+
+model CollaborationRequest {
+  id          String       @id @default(cuid(2))
+  senderId    String
+  recipientId String
+  groupId     String?
+  ideaId      String?
+  message     String
+  state       RequestState @default(PENDING)
+  expiresAt   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sender    User @relation("RequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("RequestRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, state])
+  @@index([senderId, createdAt])
+}
+
+model SavedSearch {
+  id        String  @id @default(cuid(2))
+  userId    String
+  name      String
+  query     String
+  filters   Json?
+  emailAlert Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 9 · NETWORK & OPPORTUNITIES
+// ═════════════════════════════════════════════════════════════════════════════
+
+model MentorshipRequest {
+  id       String       @id @default(cuid(2))
+  mentorId String
+  menteeId String
+  /// Required. "Be my mentor" produces nothing useful for either side.
+  goal     String
+  message  String?
+  state    RequestState @default(PENDING)
+  declineReason String?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mentor   User                @relation("Mentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  mentee   User                @relation("Mentee", fields: [menteeId], references: [id], onDelete: Cascade)
+  sessions MentorshipSession[]
+
+  @@index([mentorId, state])
+  @@index([menteeId, state])
+}
+
+model MentorshipSession {
+  id        String   @id @default(cuid(2))
+  requestId String
+  startsAt  DateTime
+  notes     String?
+  attended  Boolean?
+
+  createdAt DateTime @default(now())
+
+  request MentorshipRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, startsAt])
+}
+
+model Opportunity {
+  id             String          @id @default(cuid(2))
+  companyId      String
+  slug           String          @unique
+  title          String
+  summary        String
+  description    String
+  type           OpportunityType
+  employmentType EmploymentType
+  city           String?
+  state          String?
+  remote         Boolean         @default(false)
+  openings       Int             @default(1)
+  stipendMin     Int?
+  stipendMax     Int?
+  stipendUnit    String?
+  currency       String          @default("INR")
+  skills         String[]
+  eligibility    String
+  responsibilities String[]
+  postedOn       DateTime        @default(now())
+  /// Accurate, and honoured: an expired posting still in the index is a quality
+  /// problem Google notices.
+  validThrough   DateTime
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  company      CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@index([type, validThrough])
+  @@index([companyId])
+}
+
+model Application {
+  id            String           @id @default(cuid(2))
+  opportunityId String
+  applicantId   String
+  stage         ApplicationStage @default(APPLIED)
+  message       String?
+  projectIds    String[]
+  rejectionReason String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  opportunity Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant   User               @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  stages      ApplicationStageEvent[]
+
+  @@unique([opportunityId, applicantId])
+  @@index([applicantId, stage])
+}
+
+model ApplicationStageEvent {
+  id            String           @id @default(cuid(2))
+  applicationId String
+  from          ApplicationStage?
+  to            ApplicationStage
+  note          String?
+
+  createdAt DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+}
+
+/// Cross-college collaboration works by an explicit partnership plus a per
+/// project guest membership — never by relaxing the isolation rule.
+model CollegePartnership {
+  id        String            @id @default(cuid(2))
+  aId       String
+  bId       String
+  scope     String?
+  state     RequestState      @default(PENDING)
+  startedOn DateTime?
+  endedOn   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  a College @relation("PartnerA", fields: [aId], references: [id], onDelete: Cascade)
+  b College @relation("PartnerB", fields: [bId], references: [id], onDelete: Cascade)
+
+  @@unique([aId, bId])
+}
+
+model Event {
+  id          String    @id @default(cuid(2))
+  collegeId   String?
+  hostId      String
+  slug        String    @unique
+  title       String
+  description String
+  kind        EventKind
+  startsAt    DateTime
+  durationMinutes Int   @default(60)
+  mode        String    @default("offline")
+  venue       String?
+  joinUrl     String?
+  capacity    Int?
+  audience    String    @default("college")
+  registrationDeadline DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  college       College?            @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  host          User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  registrations EventRegistration[]
+
+  @@index([collegeId, startsAt])
+  @@index([kind, startsAt])
+}
+
+model EventRegistration {
+  id        String  @id @default(cuid(2))
+  eventId   String
+  userId    String
+  waitlisted Boolean @default(false)
+  attended  Boolean?
+
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 10 · TAXONOMY, KNOWLEDGE & MODERATION
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Seeded from src/config/taxonomy.ts, which stays the single definition.
+model Topic {
+  id       String  @id @default(cuid(2))
+  slug     String  @unique
+  name     String
+  domain   String
+  parentSlug String?
+  summary  String
+
+  createdAt DateTime @default(now())
+
+  projects ProjectTopic[]
+  ideas    IdeaTopic[]
+
+  @@index([domain])
+}
+
+model Sdg {
+  number  Int    @id
+  slug    String @unique
+  title   String
+  summary String
+}
+
+model Article {
+  id          String @id @default(cuid(2))
+  slug        String @unique
+  title       String
+  description String
+  section     String
+  author      String
+  body        String
+  keywords    String[]
+  readingMinutes Int  @default(5)
+
+  publishedOn DateTime
+  updatedOn   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([section, publishedOn])
+}
+
+model Report {
+  id          String            @id @default(cuid(2))
+  reporterId  String
+  subjectType String
+  subjectId   String
+  reason      ReportReason
+  detail      String?
+  action      ModerationAction?
+  actionReason String?
+  moderatorId String?
+  resolvedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter  User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  moderator User? @relation("Moderator", fields: [moderatorId], references: [id], onDelete: SetNull)
+
+  @@index([subjectType, subjectId])
+  @@index([resolvedAt])
+}

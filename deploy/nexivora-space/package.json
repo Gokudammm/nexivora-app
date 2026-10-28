@@ -1,0 +1,15 @@
+{
+  "name": "nexivora-space-deploy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static holding-page deploy for nexivora.space (Hostinger shared hosting via FTP). Not the application — see README.md in this folder.",
+  "scripts": {
+    "deploy": "node deploy.js",
+    "deploy:dry-run": "node deploy.js --dry-run",
+    "deploy:verbose": "node deploy.js --verbose"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.1.0",
+    "dotenv": "^17.2.4"
+  }
+}

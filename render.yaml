@@ -1,0 +1,82 @@
+# Render Blueprint — the fastest path to a real, running Nexivora with no VPS.
+#
+# Why this exists: docs/DEPLOYMENT.md already recommends Render (free, runs
+# Node) + Neon (free Postgres) as the quickest way to get the actual dynamic
+# app live, as opposed to a Hostinger VPS. This file makes that a "New >
+# Blueprint" click in the Render dashboard instead of manually configuring a
+# web service by hand.
+#
+# What you still have to do yourself (Render can't do these from a file):
+#   1. Create a free Neon project (neon.tech) and copy its pooled connection
+#      string.
+#   2. In Render: New > Blueprint > pick this repo. Render reads this file.
+#   3. Fill in the env vars marked `sync: false` below when prompted —
+#      DATABASE_URL (from Neon), NEXT_PUBLIC_SITE_URL and AUTH_URL (the
+#      *.onrender.com URL Render gives you after first deploy — update these
+#      once you see it, then again once nexivora.space DNS points here).
+#   4. Point nexivora.space at the resulting service in Hostinger's hPanel
+#      (a CNAME to the onrender.com host, or Render's custom-domain flow for
+#      an apex domain) — that needs the hPanel login, not FTP.
+#
+# See deploy/nexivora-space/README.md for the full walkthrough.
+
+services:
+  - type: web
+    name: nexivora
+    runtime: node
+    plan: free
+    rootDir: app
+    # Co-located with the database, not with the audience. Render and Neon
+    # both default new projects to US East (Ohio) — matching them avoids
+    # every single query crossing continents, which for a dashboard-heavy
+    # app matters far more than shaving one fixed round trip for a viewer
+    # in India. If your Neon project ends up somewhere else, change this
+    # to match rather than the other way around: Render's region is locked
+    # at creation, Neon's isn't (delete-and-recreate is cheap on a fresh
+    # free project; migrating an already-deployed Render service is not).
+    region: ohio
+    # `--include=dev` overrides npm's default of skipping devDependencies
+    # whenever NODE_ENV=production is set (below). That default is right for
+    # the RUNTIME (no need for eslint, @types/*, etc. in the running server)
+    # but wrong for this BUILD step: `next build` still needs `typescript`
+    # (next.config.ts sets ignoreBuildErrors: false — it genuinely type-checks
+    # at build time) and `tailwindcss` / `@tailwindcss/postcss` to process
+    # globals.css. Both are correctly devDependencies in package.json — the
+    # fix belongs here, in how the build is invoked, not in reclassifying
+    # build tooling as runtime dependencies it isn't.
+    buildCommand: npm ci --include=dev && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: AUTH_URL
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: EMAIL_TRANSPORT
+        value: smtp
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: STORAGE_DRIVER
+        value: local
+      - key: UPLOAD_DIR
+        value: ./.uploads
+      - key: MAX_UPLOAD_BYTES
+        value: "26214400"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: AI_ENABLED
+        value: "false"

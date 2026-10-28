@@ -1,0 +1,658 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   NEXIVORA DESIGN TOKENS
+   -----------------------------------------------------------------------------
+   Every colour is defined on bare :root FIRST, then redefined for dark mode.
+   A colour whose only definition sits inside a media query is a bug — the
+   contrast audit (scripts/check-contrast.mjs) will not see it.
+
+   Never write a hex value in a component. Reference: docs/DESIGN-SYSTEM.md
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- Primary — Iris. Identity, links, primary actions ------------------- */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+  --color-primary-950: #1e1b4b;
+
+  /* --- Accent — Cyan-teal. Verified, growth, SDG, proof ------------------- */
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
+  --color-accent-950: #083344;
+
+  /* --- Highlight — Amber. Opportunity, spotlight, CTA emphasis ------------ */
+  --color-highlight-50: #fffbeb;
+  --color-highlight-100: #fef3c7;
+  --color-highlight-200: #fde68a;
+  --color-highlight-300: #fcd34d;
+  --color-highlight-400: #fbbf24;
+  --color-highlight-500: #f59e0b;
+  --color-highlight-600: #d97706;
+  --color-highlight-700: #b45309;
+  --color-highlight-800: #92400e;
+  --color-highlight-900: #78350f;
+  --color-highlight-950: #451a03;
+
+  /* --- Neutral ramp ------------------------------------------------------- */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
+
+  /* --- Semantic surfaces -------------------------------------------------- */
+  --color-surface: #ffffff;
+  --color-surface-raised: #f8fafc;
+  --color-surface-sunken: #f1f5f9;
+  --color-surface-inverse: #0f172a;
+  --color-surface-overlay: rgb(15 23 42 / 0.45);
+
+  /* --- Semantic foregrounds ---------------------------------------------- */
+  /* fg-subtle is 500 not 400: 400 on white measures 2.85:1 and fails AA.    */
+  --color-fg: #0f172a;
+  --color-fg-muted: #475569;
+  --color-fg-subtle: #64748b;
+  --color-fg-inverse: #f8fafc;
+
+  /* --- Filled-control pairings -------------------------------------------- */
+  /* A component NEVER picks its own ramp step for a filled background — it   */
+  /* uses these, so the fill and its foreground can never drift apart.        */
+  /* Measured: white on accent-600 is 3.68 and white on highlight-600 is 3.19 */
+  /* — both fail AA. So accent fills use 700 with white, and highlight fills  */
+  /* use 500 with dark text (7.11), which is also the better-looking amber.   */
+  /* Amber at 2.15:1 against white cannot define its own edge (WCAG 1.4.11),  */
+  /* so a highlight-filled control ALWAYS carries this border. Primary and     */
+  /* accent fills clear 3:1 unaided and need none.                             */
+  --color-primary-fill: #4f46e5;
+  --color-accent-fill: #0e7490;
+  --color-highlight-fill: #f59e0b;
+  --color-highlight-fill-border: #b45309;
+  --color-fg-on-primary: #ffffff;
+  --color-fg-on-accent: #ffffff;
+  --color-fg-on-highlight: #3d1d02;
+
+  /* --- Borders ------------------------------------------------------------ */
+  /* border-strong must reach 3:1 against surface for UI boundaries (WCAG    */
+  /* 1.4.11). slate-300 measures 1.47:1 and fails; slate-500 passes.         */
+  --color-border: #e2e8f0;
+  --color-border-strong: #64748b;
+  --color-border-focus: #4f46e5;
+
+  /* --- Semantic states ---------------------------------------------------- */
+  --color-success: #047857;
+  --color-success-fg: #ffffff;
+  --color-success-bg: #ecfdf5;
+  --color-warning: #b45309;
+  --color-warning-fg: #ffffff;
+  --color-warning-bg: #fffbeb;
+  --color-danger: #b91c1c;
+  --color-danger-fg: #ffffff;
+  --color-danger-bg: #fef2f2;
+  --color-info: #1d4ed8;
+  --color-info-fg: #ffffff;
+  --color-info-bg: #eff6ff;
+
+  /* --- Contribution proof tiers (load-bearing — see Phase 12) ------------- */
+  /* These three must be distinguishable at a glance AND in greyscale print, */
+  /* because they appear on exported portfolio PDFs that people print.       */
+  --color-tier-self: #64748b;
+  --color-tier-evidenced: #4f46e5;
+  --color-tier-attested: #0e7490;
+
+  /* --- Project lifecycle statuses ---------------------------------------- */
+  --color-status-draft: #64748b;
+  --color-status-proposed: #1d4ed8;
+  --color-status-approved: #4f46e5;
+  --color-status-progress: #b45309;
+  --color-status-review: #a16207;
+  --color-status-completed: #047857;
+  --color-status-archived: #475569;
+
+  /* --- Domain / topic categorical set (8, contrast-checked) --------------- */
+  --color-domain-ai: #4f46e5;
+  --color-domain-software: #0e7490;
+  --color-domain-hardware: #b45309;
+  --color-domain-healthcare: #be123c;
+  --color-domain-education: #7e22ce;
+  --color-domain-sustainability: #047857;
+  --color-domain-social: #c2410c;
+  --color-domain-research: #1d4ed8;
+
+  /* --- Chart series set (6, CVD-validated) --------------------------------
+     A SEPARATE set from the domain palette above, and the reason is worth
+     recording: the domain colours are contrast-checked against the *surface*,
+     which is the right test for a badge and the wrong one for a chart. Marks
+     in a chart must be distinguishable from *each other*, under protanopia and
+     deuteranopia, which is a different measurement entirely — and the domain
+     set fails it (crimson vs amber, deuteran ΔE 5.7 against a target of 8).
+
+     These six are the output of scripts/check-chart-palette.mjs, which runs the
+     same six checks in both themes. Worst adjacent pair: ΔE 20.0 light, 19.0
+     dark. Six hues cannot separate on ALL pairs inside the dark lightness band —
+     nothing can, we searched — so charts using more than a couple of series use
+     small multiples with a name beside each facet, and colour is never the only
+     thing telling two series apart. */
+  --color-series-1: #0891b2;
+  --color-series-2: #b45309;
+  --color-series-3: #4f46e5;
+  --color-series-4: #be123c;
+  --color-series-5: #7e22ce;
+  --color-series-6: #047857;
+
+  /* --- Typography --------------------------------------------------------- */
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "Cascadia Code", monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+  --text-7xl: 4.5rem;
+
+  --leading-display: 1.15;
+  --leading-ui: 1.5;
+  --leading-body: 1.6;
+
+  --measure: 68ch;
+
+  /* --- Radius — Nexivora reads slightly softer than a typical dashboard --- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+  --radius-full: 9999px;
+
+  /* --- Elevation — tinted with the primary hue, never pure black ---------- */
+  --shadow-xs: 0 1px 2px 0 rgb(30 27 75 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(30 27 75 / 0.08), 0 1px 2px -1px rgb(30 27 75 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(30 27 75 / 0.1), 0 2px 4px -2px rgb(30 27 75 / 0.06);
+  --shadow-lg: 0 12px 28px -6px rgb(30 27 75 / 0.12), 0 4px 10px -4px rgb(30 27 75 / 0.07);
+  --shadow-xl: 0 24px 48px -12px rgb(30 27 75 / 0.18);
+
+  /* --- Motion ------------------------------------------------------------- */
+  --duration-state: 120ms;
+  --duration-enter: 200ms;
+  --duration-overlay: 260ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* --- Z-index ladder — named tokens only. Never an arbitrary z-[9999]. --- */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-overlay: 1200;
+  --z-modal: 1300;
+  --z-popover: 1400;
+  --z-toast: 1500;
+  --z-command: 1600;
+}
+
+/* =============================================================================
+   DARK THEME
+   Dark mode is not an inversion. Surfaces LIFT rather than darken, primary and
+   accent lighten for contrast against a dark ground, and shadows give way to
+   borders because shadows are invisible on dark surfaces.
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-surface: #0b1020;
+    --color-surface-raised: #151b2e;
+    --color-surface-sunken: #070b16;
+    --color-surface-inverse: #f8fafc;
+    --color-surface-overlay: rgb(2 6 23 / 0.65);
+
+    --color-fg: #f1f5f9;
+    --color-fg-muted: #a9b6c9;
+    --color-fg-subtle: #8896ab;
+    --color-fg-inverse: #0f172a;
+
+    --color-primary-fill: #a5b4fc;
+    --color-accent-fill: #67e8f9;
+    --color-highlight-fill: #fcd34d;
+    --color-highlight-fill-border: #fcd34d;
+    --color-fg-on-primary: #0b1020;
+    --color-fg-on-accent: #041318;
+    --color-fg-on-highlight: #1c1200;
+
+    --color-border: #232b40;
+    --color-border-strong: #55617a;
+    --color-border-focus: #a5b4fc;
+
+    --color-primary-600: #a5b4fc;
+    --color-primary-700: #818cf8;
+    --color-accent-600: #67e8f9;
+    --color-accent-700: #22d3ee;
+    --color-highlight-600: #fcd34d;
+    --color-highlight-700: #fbbf24;
+
+    --color-success: #6ee7b7;
+    --color-success-fg: #022c22;
+    --color-success-bg: #052e23;
+    --color-warning: #fcd34d;
+    --color-warning-fg: #1c1200;
+    --color-warning-bg: #322003;
+    --color-danger: #fca5a5;
+    --color-danger-fg: #300a0a;
+    --color-danger-bg: #3b1111;
+    --color-info: #93c5fd;
+    --color-info-fg: #0b1a3a;
+    --color-info-bg: #10203f;
+
+    --color-tier-self: #8896ab;
+    --color-tier-evidenced: #a5b4fc;
+    --color-tier-attested: #67e8f9;
+
+    --color-status-draft: #8896ab;
+    --color-status-proposed: #93c5fd;
+    --color-status-approved: #a5b4fc;
+    --color-status-progress: #fcd34d;
+    --color-status-review: #fde68a;
+    --color-status-completed: #6ee7b7;
+    --color-status-archived: #a9b6c9;
+
+    --color-domain-ai: #a5b4fc;
+    --color-domain-software: #67e8f9;
+    --color-domain-hardware: #fcd34d;
+    --color-domain-healthcare: #fda4af;
+    --color-domain-education: #d8b4fe;
+    --color-domain-sustainability: #6ee7b7;
+    --color-domain-social: #fdba74;
+    --color-domain-research: #93c5fd;
+
+    /* Chart series, dark. Its own steps — the light values sit above the dark
+       lightness band (L 0.48–0.67) and would glare; the 400-step domain values
+       sit above it too, which is what made a separate set necessary. */
+    --color-series-1: #0891b2;
+    --color-series-2: #d97706;
+    --color-series-3: #6366f1;
+    --color-series-4: #f43f5e;
+    --color-series-5: #a855f7;
+    --color-series-6: #059669;
+
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+    --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.55);
+    --shadow-lg: 0 12px 28px -6px rgb(0 0 0 / 0.6);
+    --shadow-xl: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+/* Explicit choice wins over the system preference, in both directions. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-surface: #0b1020;
+  --color-surface-raised: #151b2e;
+  --color-surface-sunken: #070b16;
+  --color-surface-inverse: #f8fafc;
+  --color-surface-overlay: rgb(2 6 23 / 0.65);
+
+  --color-fg: #f1f5f9;
+  --color-fg-muted: #a9b6c9;
+  --color-fg-subtle: #8896ab;
+  --color-fg-inverse: #0f172a;
+
+  --color-primary-fill: #a5b4fc;
+  --color-accent-fill: #67e8f9;
+  --color-highlight-fill: #fcd34d;
+  --color-highlight-fill-border: #fcd34d;
+  --color-fg-on-primary: #0b1020;
+  --color-fg-on-accent: #041318;
+  --color-fg-on-highlight: #1c1200;
+
+  --color-border: #232b40;
+  --color-border-strong: #55617a;
+  --color-border-focus: #a5b4fc;
+
+  --color-primary-600: #a5b4fc;
+  --color-primary-700: #818cf8;
+  --color-accent-600: #67e8f9;
+  --color-accent-700: #22d3ee;
+  --color-highlight-600: #fcd34d;
+  --color-highlight-700: #fbbf24;
+
+  --color-success: #6ee7b7;
+  --color-success-fg: #022c22;
+  --color-success-bg: #052e23;
+  --color-warning: #fcd34d;
+  --color-warning-fg: #1c1200;
+  --color-warning-bg: #322003;
+  --color-danger: #fca5a5;
+  --color-danger-fg: #300a0a;
+  --color-danger-bg: #3b1111;
+  --color-info: #93c5fd;
+  --color-info-fg: #0b1a3a;
+  --color-info-bg: #10203f;
+
+  --color-tier-self: #8896ab;
+  --color-tier-evidenced: #a5b4fc;
+  --color-tier-attested: #67e8f9;
+
+  --color-status-draft: #8896ab;
+  --color-status-proposed: #93c5fd;
+  --color-status-approved: #a5b4fc;
+  --color-status-progress: #fcd34d;
+  --color-status-review: #fde68a;
+  --color-status-completed: #6ee7b7;
+  --color-status-archived: #a9b6c9;
+
+  --color-domain-ai: #a5b4fc;
+  --color-domain-software: #67e8f9;
+  --color-domain-hardware: #fcd34d;
+  --color-domain-healthcare: #fda4af;
+  --color-domain-education: #d8b4fe;
+  --color-domain-sustainability: #6ee7b7;
+  --color-domain-social: #fdba74;
+  --color-domain-research: #93c5fd;
+
+  /* Chart series, dark — same steps as the media-query block above. Both
+     exist so an explicit theme choice wins in either direction. */
+  --color-series-1: #0891b2;
+  --color-series-2: #d97706;
+  --color-series-3: #6366f1;
+  --color-series-4: #f43f5e;
+  --color-series-5: #a855f7;
+  --color-series-6: #059669;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 12px 28px -6px rgb(0 0 0 / 0.6);
+  --shadow-xl: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+}
+
+/* =============================================================================
+   TAILWIND THEME BRIDGE
+   Exposes the tokens above as Tailwind utilities (bg-surface, text-fg-muted,
+   rounded-lg, shadow-md, z-modal …). `inline` so the utilities resolve to the
+   var() reference and therefore re-theme without a rebuild.
+   ========================================================================== */
+
+@theme inline {
+  --color-primary-50: var(--color-primary-50);
+  --color-primary-100: var(--color-primary-100);
+  --color-primary-200: var(--color-primary-200);
+  --color-primary-300: var(--color-primary-300);
+  --color-primary-400: var(--color-primary-400);
+  --color-primary-500: var(--color-primary-500);
+  --color-primary-600: var(--color-primary-600);
+  --color-primary-700: var(--color-primary-700);
+  --color-primary-800: var(--color-primary-800);
+  --color-primary-900: var(--color-primary-900);
+  --color-primary-950: var(--color-primary-950);
+
+  --color-accent-50: var(--color-accent-50);
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-200: var(--color-accent-200);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-800: var(--color-accent-800);
+  --color-accent-900: var(--color-accent-900);
+  --color-accent-950: var(--color-accent-950);
+
+  --color-highlight-50: var(--color-highlight-50);
+  --color-highlight-100: var(--color-highlight-100);
+  --color-highlight-200: var(--color-highlight-200);
+  --color-highlight-300: var(--color-highlight-300);
+  --color-highlight-400: var(--color-highlight-400);
+  --color-highlight-500: var(--color-highlight-500);
+  --color-highlight-600: var(--color-highlight-600);
+  --color-highlight-700: var(--color-highlight-700);
+  --color-highlight-800: var(--color-highlight-800);
+  --color-highlight-900: var(--color-highlight-900);
+  --color-highlight-950: var(--color-highlight-950);
+
+  --color-neutral-50: var(--color-neutral-50);
+  --color-neutral-100: var(--color-neutral-100);
+  --color-neutral-200: var(--color-neutral-200);
+  --color-neutral-300: var(--color-neutral-300);
+  --color-neutral-400: var(--color-neutral-400);
+  --color-neutral-500: var(--color-neutral-500);
+  --color-neutral-600: var(--color-neutral-600);
+  --color-neutral-700: var(--color-neutral-700);
+  --color-neutral-800: var(--color-neutral-800);
+  --color-neutral-900: var(--color-neutral-900);
+  --color-neutral-950: var(--color-neutral-950);
+
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-sunken: var(--color-surface-sunken);
+  --color-surface-inverse: var(--color-surface-inverse);
+  --color-surface-overlay: var(--color-surface-overlay);
+
+  --color-fg: var(--color-fg);
+  --color-fg-muted: var(--color-fg-muted);
+  --color-fg-subtle: var(--color-fg-subtle);
+  --color-fg-inverse: var(--color-fg-inverse);
+  --color-primary-fill: var(--color-primary-fill);
+  --color-accent-fill: var(--color-accent-fill);
+  --color-highlight-fill: var(--color-highlight-fill);
+  --color-highlight-fill-border: var(--color-highlight-fill-border);
+  --color-fg-on-primary: var(--color-fg-on-primary);
+  --color-fg-on-accent: var(--color-fg-on-accent);
+  --color-fg-on-highlight: var(--color-fg-on-highlight);
+
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-border-focus: var(--color-border-focus);
+
+  --color-success: var(--color-success);
+  --color-success-fg: var(--color-success-fg);
+  --color-success-bg: var(--color-success-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-fg: var(--color-warning-fg);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-danger: var(--color-danger);
+  --color-danger-fg: var(--color-danger-fg);
+  --color-danger-bg: var(--color-danger-bg);
+  --color-info: var(--color-info);
+  --color-info-fg: var(--color-info-fg);
+  --color-info-bg: var(--color-info-bg);
+
+  --color-tier-self: var(--color-tier-self);
+  --color-tier-evidenced: var(--color-tier-evidenced);
+  --color-tier-attested: var(--color-tier-attested);
+
+  --color-status-draft: var(--color-status-draft);
+  --color-status-proposed: var(--color-status-proposed);
+  --color-status-approved: var(--color-status-approved);
+  --color-status-progress: var(--color-status-progress);
+  --color-status-review: var(--color-status-review);
+  --color-status-completed: var(--color-status-completed);
+  --color-status-archived: var(--color-status-archived);
+
+  --color-domain-ai: var(--color-domain-ai);
+  --color-domain-software: var(--color-domain-software);
+  --color-domain-hardware: var(--color-domain-hardware);
+  --color-domain-healthcare: var(--color-domain-healthcare);
+  --color-domain-education: var(--color-domain-education);
+  --color-domain-sustainability: var(--color-domain-sustainability);
+  --color-domain-social: var(--color-domain-social);
+  --color-domain-research: var(--color-domain-research);
+
+  --color-series-1: var(--color-series-1);
+  --color-series-2: var(--color-series-2);
+  --color-series-3: var(--color-series-3);
+  --color-series-4: var(--color-series-4);
+  --color-series-5: var(--color-series-5);
+  --color-series-6: var(--color-series-6);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+
+  --z-index-dropdown: var(--z-dropdown);
+  --z-index-sticky: var(--z-sticky);
+  --z-index-overlay: var(--z-overlay);
+  --z-index-modal: var(--z-modal);
+  --z-index-popover: var(--z-popover);
+  --z-index-toast: var(--z-toast);
+  --z-index-command: var(--z-command);
+}
+
+/* =============================================================================
+   BASE
+   ========================================================================== */
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    line-height: var(--leading-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  /* Focus rings are never removed. This is the house style, applied once. */
+  :focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background-color: var(--color-primary-200);
+    color: var(--color-primary-950);
+  }
+
+  /* Touch targets: 44x44 minimum (WCAG 2.5.5). */
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* Skip link — the first focusable element on every page. */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    z-index: var(--z-command);
+    padding: 0.75rem 1.25rem;
+    background-color: var(--color-primary-600);
+    color: var(--color-fg-on-primary);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+  }
+
+  .skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+  }
+}
+
+/* =============================================================================
+   REDUCED MOTION
+   Durations collapse to 0.01ms rather than being removed, so transitionend
+   callbacks still fire and nothing depending on them silently breaks.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-border: var(--color-neutral-500);
+    --color-border-strong: var(--color-neutral-700);
+    --color-fg-subtle: var(--color-neutral-700);
+  }
+}

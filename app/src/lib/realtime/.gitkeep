@@ -1,0 +1,1 @@
+# sse.ts — the transport boundary. Nothing imports the transport directly. Phase 10.

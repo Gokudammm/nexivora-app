@@ -50,12 +50,14 @@ click rather than hand-configuring a service:
 
 1. Create a free account at **neon.tech** → New project → copy the **pooled**
    connection string. Keep the tab open, you need it in step 3.
-2. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/achaudhary7/nexivora)**.
+2. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/Gokudammm/nexivora-app)**.
    Signing in with GitHub is the fastest path (one OAuth click, also grants
    Render the repo access it needs) — no separate signup form.
 3. Render reads `render.yaml` from the repo automatically and asks you to
    fill in the values it can't know on its own:
-   - `DATABASE_URL` — the Neon string from step 1.
+   - `DATABASE_URL` — the Neon **pooled** connection string for app queries.
+   - `DIRECT_DATABASE_URL` — the Neon **direct/unpooled** connection string
+     for Prisma migrations. Both URLs must point to the same database.
    - `NEXT_PUBLIC_SITE_URL` and `AUTH_URL` — leave a placeholder for the
      first deploy (e.g. `https://nexivora.onrender.com`), then come back and
      set the real `.onrender.com` URL Render assigns you, redeploy once.

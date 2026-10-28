@@ -52,6 +52,8 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
       - key: NEXT_PUBLIC_SITE_URL
         sync: false
       - key: AUTH_URL

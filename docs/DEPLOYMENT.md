@@ -49,14 +49,15 @@ provide a built-in PostgreSQL database.
 
 ### 1. Import the project
 
-Import the Git repository in Vercel and set **Root Directory** to `app`. Vercel should detect
-Next.js automatically. Use `npm ci` as the install command and
-`npm run db:deploy && npm run build` as the build command so production migrations are applied
-before the app is built. The project keeps `output: "standalone"` for self-hosting and disables it
-for Vercel builds.
+Import `Gokudammm/nexivora-app` in Vercel and set **Root Directory** to `app`. Vercel should detect
+Next.js automatically. Keep `npm ci` as the install command and use the build command from
+[`app/vercel.json`](../app/vercel.json): it generates Prisma Client, applies migrations using
+`DIRECT_DATABASE_URL`, then builds the app. Do not override that command with just `npm run build`.
+The project keeps `output: "standalone"` for self-hosting and disables it for Vercel builds.
 
-Connect a separate Neon branch/database to Preview deployments. Do not run preview migrations
-against the production database.
+Set the database environment variables before the first deployment; static pages read the database
+during the build. Connect a separate Neon branch/database to Preview deployments, and never run
+preview migrations against the production database.
 
 ### 2. Connect PostgreSQL
 

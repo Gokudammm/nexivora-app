@@ -1,6 +1,15 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+const directDatabaseUrl = process.env.DIRECT_DATABASE_URL?.trim();
+
+if (process.env.VERCEL === "1" && !directDatabaseUrl) {
+  throw new Error(
+    "DIRECT_DATABASE_URL is required on Vercel for Prisma migrations. " +
+      "Set it to your provider's direct (unpooled) PostgreSQL connection string.",
+  );
+}
+
 /**
  * Prisma 7 configuration.
  *
@@ -25,6 +34,6 @@ export default defineConfig({
     seed: "node --experimental-strip-types prisma/seed/index.ts",
   },
   datasource: {
-    url: process.env.DIRECT_DATABASE_URL?.trim() || process.env.DATABASE_URL,
+    url: directDatabaseUrl || process.env.DATABASE_URL,
   },
 });

@@ -63,10 +63,13 @@ preview migrations against the production database.
 
 From the Vercel project, add PostgreSQL through the Marketplace and connect it to the Production
 environment. Set `DATABASE_URL` to the provider's pooled PostgreSQL connection string for application traffic.
-Set `DIRECT_DATABASE_URL` to its unpooled connection string for Prisma migrations. If the integration
-supplies differently named variables, map its pooled URI to `DATABASE_URL` and its direct URI to
-`DIRECT_DATABASE_URL`. The first deployment runs migrations only; do not seed demo data into
-production.
+Set `DIRECT_DATABASE_URL` to its direct (unpooled) connection string for Prisma migrations. For
+Neon, use the connection string whose hostname does **not** contain `-pooler`; a pooled URL can
+time out while Prisma acquires its migration advisory lock. If the integration supplies differently
+named variables, map its pooled URI to `DATABASE_URL` and its direct URI to `DIRECT_DATABASE_URL`.
+Vercel builds fail early if `DIRECT_DATABASE_URL` is missing rather than attempting migrations
+through the pooled connection. The first deployment runs migrations only; do not seed demo data
+into production.
 
 ### 3. Create durable, private file storage
 
@@ -116,6 +119,13 @@ Deploy from the Vercel dashboard after connecting the repository, or use the Ver
 `app` directory after signing in. Verify registration and SMTP delivery, upload and download a
 25 MB file, and confirm a non-member receives the same 404 as a missing group file. Also check
 `/robots.txt`, `/sitemap.xml`, canonical URLs, and the health route after deployment.
+
+If a deployment reports Prisma `P1002` while acquiring an advisory lock, confirm that
+`DIRECT_DATABASE_URL` is set in that deployment environment to the direct, unpooled URI, then
+retry after any other deployment or migration using the same database has finished. The login page
+cannot work until the deployment succeeds and its migrations have been applied; if the site is live
+but sign-in still fails, verify `AUTH_SECRET` is set for the same Vercel environment and inspect
+the function logs for the database error.
 
 ---
 

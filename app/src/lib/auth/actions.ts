@@ -250,7 +250,9 @@ export async function register(
   const session = await createSession(user.id, await requestContext());
   await setSessionCookie(session.token, session.expires);
 
-  redirect("/verify-email");
+  // Verification remains required for creating content, but should not block
+  // a new user from completing onboarding and reaching the dashboard.
+  redirect("/onboarding");
 }
 
 /**

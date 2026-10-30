@@ -56,6 +56,7 @@ export type ActionResult =
 
 /** One message for both failures. Never "no account with that email". */
 const BAD_CREDENTIALS = "That email and password do not match an account.";
+const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 
 /**
  * A real hash of a value nobody knows, verified against when the account does
@@ -200,15 +201,23 @@ export async function register(
   const strength = checkPassword(password, { email, name });
   if (!strength.ok) return { ok: false, error: strength.reason, field: "password" };
 
-  const existing = await db.user.findFirst({ where: { email }, select: { id: true } });
+  const existing = await db.user.findFirst({
+    where: { email },
+    select: { id: true, name: true, email: true, emailVerified: true },
+  });
 
   if (existing) {
     // Do not confirm the address is taken — that is an enumeration oracle.
-    // Answer exactly as a successful registration does; the real owner learns
-    // about it in their inbox, and they are the only person entitled to.
+    // Resend only for an unverified account, and use the same response whether
+    // the address exists or not.
+    if (!existing.emailVerified) {
+      await sendVerificationEmail(existing);
+    }
+
     return {
       ok: true,
-      message: "Check your email to confirm your address and finish setting up your account.",
+      message:
+        "If this address still needs confirmation, check your inbox. If you already have an account, sign in or reset your password.",
     };
   }
 
@@ -239,13 +248,7 @@ export async function register(
     select: { id: true, name: true, email: true },
   });
 
-  await sendEmail(
-    verificationEmail(
-      user.email,
-      user.name,
-      await issueToken(user.id, email, "email-verification"),
-    ),
-  );
+  await sendVerificationEmail(user);
 
   const session = await createSession(user.id, await requestContext());
   await setSessionCookie(session.token, session.expires);
@@ -287,6 +290,25 @@ async function uniqueUsername(name: string, email: string): Promise<string> {
 
 /* ------------------------------------------------------- email verification */
 
+async function sendVerificationEmail(user: { id: string; email: string; name: string }) {
+  const recentToken = await db.verificationToken.findFirst({
+    where: { userId: user.id, purpose: "email-verification" },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+
+  if (
+    recentToken &&
+    Date.now() - recentToken.createdAt.getTime() < VERIFICATION_RESEND_COOLDOWN_MS
+  ) {
+    return false;
+  }
+
+  const token = await issueToken(user.id, user.email, "email-verification");
+  await sendEmail(verificationEmail(user.email, user.name, token));
+  return true;
+}
+
 export async function resendVerification(): Promise<ActionResult> {
   const viewer = await currentViewer();
   if (!viewer.userId) return { ok: false, error: "Sign in first." };
@@ -299,17 +321,13 @@ export async function resendVerification(): Promise<ActionResult> {
   if (!user) return { ok: false, error: "Sign in first." };
   if (user.emailVerified) return { ok: true, message: "That address is already confirmed." };
 
-  await sendEmail(
-    verificationEmail(
-      user.email,
-      user.name,
-      await issueToken(user.id, user.email, "email-verification"),
-    ),
-  );
+  const sent = await sendVerificationEmail(user);
 
   return {
     ok: true,
-    message: "Sent. Check your inbox — in development it prints to the terminal.",
+    message: sent
+      ? "Sent. Check your inbox — in development it prints to the terminal."
+      : "A confirmation link was sent recently. Check your inbox before requesting another.",
   };
 }
 

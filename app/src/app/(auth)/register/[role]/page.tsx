@@ -63,17 +63,32 @@ export default async function RegisterRolePage({ params }: PageProps<"/register/
         submitLabel="Create account"
         pendingLabel="Creating your account…"
         footer={
-          <p className="text-center text-sm text-fg-muted">
-            By continuing you agree to our{" "}
-            <Link href="/legal/terms" className="underline underline-offset-4 hover:text-fg">
-              terms
-            </Link>{" "}
-            and{" "}
-            <Link href="/legal/privacy" className="underline underline-offset-4 hover:text-fg">
-              privacy policy
-            </Link>
-            .
-          </p>
+          <div className="grid gap-3 text-center text-sm text-fg-muted">
+            <p>
+              By continuing you agree to our{" "}
+              <Link href="/legal/terms" className="underline underline-offset-4 hover:text-fg">
+                terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/legal/privacy" className="underline underline-offset-4 hover:text-fg">
+                privacy policy
+              </Link>
+              .
+            </p>
+            <p>
+              Already have an account?{" "}
+              <Link href="/login" className="font-medium text-fg underline underline-offset-4">
+                Sign in
+              </Link>
+              {" · "}
+              <Link
+                href="/forgot-password"
+                className="font-medium text-fg underline underline-offset-4"
+              >
+                Reset password
+              </Link>
+            </p>
+          </div>
         }
       >
         <input type="hidden" name="role" value={choice.role} />
